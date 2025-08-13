@@ -1,7 +1,20 @@
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  /* Theme palette */
+  --bg-start: #0b1020;
+  --bg-end: #0a0f1a;
+  --text: #e6e8f0;
+  --muted: rgba(230,232,240,0.8);
+  --surface: rgba(255,255,255,0.06);
+  --surface-strong: rgba(255,255,255,0.08);
+  --border: rgba(255,255,255,0.08);
+  --primary-1: #22d3ee; /* cyan */
+  --primary-2: #7c4dff; /* violet */
+  --primary-solid: linear-gradient(135deg, var(--primary-1), var(--primary-2));
+}
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
-body { margin: 0; font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, Apple Color Emoji, Segoe UI Emoji; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, Apple Color Emoji, Segoe UI Emoji; color: var(--text); }
 
 /* Nice scrollbars */
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }

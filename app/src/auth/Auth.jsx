@@ -1,21 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthenticationStatus, useSignInEmailPassword, useSignUpEmailPassword } from '@nhost/react'
+import '../styles/auth.css'
 
 export function AuthGate({ children }) {
   const { isAuthenticated, isLoading } = useAuthenticationStatus()
-  if (isLoading) return <div>Loading...</div>
+  if (isLoading) return <div className="auth-shell"><div className="card">Loading...</div></div>
   return isAuthenticated ? <>{children}</> : <AuthForm />
 }
 
 function AuthForm() {
   const [mode, setMode] = useState('signin')
+
+  useEffect(() => {
+    (async () => {
+      const { gsap } = await import('gsap')
+      gsap.from('.card', { y: 14, opacity: 0, duration: .5, ease: 'power2.out' })
+      gsap.from('.field', { y: 8, opacity: 0, duration: .4, stagger: .06, delay: .1 })
+    })()
+  }, [mode])
+
   return (
-    <div style={{ maxWidth: 360, margin: '4rem auto' }}>
-      <h2>{mode === 'signin' ? 'Sign In' : 'Sign Up'}</h2>
-      {mode === 'signin' ? <SignIn /> : <SignUp />}
-      <button onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')} style={{ marginTop: 12 }}>
-        {mode === 'signin' ? 'Need an account? Sign Up' : 'Have an account? Sign In'}
-      </button>
+    <div className="auth-shell">
+      <div className="bg-orbs">
+        <div className="orb one" />
+        <div className="orb two" />
+      </div>
+      <div className="card">
+        <h1 className="h1">{mode === 'signin' ? 'Welcome back' : 'Create account'}</h1>
+        <p className="muted">{mode === 'signin' ? 'Sign in to continue your conversations.' : 'Join to start a new conversation.'}</p>
+        {mode === 'signin' ? <SignIn /> : <SignUp />}
+        <div className="switch">
+          {mode === 'signin' ? (
+            <>No account? <a onClick={() => setMode('signup')}>Sign up</a></>
+          ) : (
+            <>Have an account? <a onClick={() => setMode('signin')}>Sign in</a></>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -30,11 +51,11 @@ function SignIn() {
   }
   return (
     <form onSubmit={onSubmit}>
-      <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-      <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-      <button type="submit" disabled={isLoading}>Sign In</button>
-      {isSuccess && <p>Signed in!</p>}
-      {error?.message && <p style={{ color: 'red' }}>{error.message}</p>}
+      <div className="field"><label className="label">Email</label><input className="input" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} /></div>
+      <div className="field"><label className="label">Password</label><input className="input" placeholder="••••••••" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+      <button className="btn" type="submit" disabled={isLoading}>Sign In</button>
+      {isSuccess && <p className="success">Signed in!</p>}
+      {error?.message && <p className="error">{error.message}</p>}
     </form>
   )
 }
@@ -49,11 +70,11 @@ function SignUp() {
   }
   return (
     <form onSubmit={onSubmit}>
-      <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-      <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-      <button type="submit" disabled={isLoading}>Sign Up</button>
-      {isSuccess && <p>Check your email to verify, then sign in.</p>}
-      {error?.message && <p style={{ color: 'red' }}>{error.message}</p>}
+      <div className="field"><label className="label">Email</label><input className="input" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} /></div>
+      <div className="field"><label className="label">Password</label><input className="input" placeholder="Create a password" type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
+      <button className="btn" type="submit" disabled={isLoading}>Sign Up</button>
+      {isSuccess && <p className="success">Check your email to verify, then sign in.</p>}
+      {error?.message && <p className="error">{error.message}</p>}
     </form>
   )
 }

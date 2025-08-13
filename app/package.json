@@ -16,6 +16,7 @@
     "@nhost/react-apollo": "^18.0.1",
     "graphql": "^16.11.0",
     "graphql-ws": "^6.0.6",
+    "gsap": "^3.13.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
