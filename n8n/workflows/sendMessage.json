@@ -1,0 +1,201 @@
+{
+  "name": "sendMessage from Hasura",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "sendMessage",
+        "options": {
+          "responseData": "={{$json}}"
+        }
+      },
+      "id": "Webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
+        "options": {},
+        "query": "query VerifyChat($chat_id: uuid!) { chats_by_pk(id: $chat_id) { id user_id } }",
+        "variables": "={\n  chat_id: $json.body.input.chat_id\n}"
+      },
+      "id": "VerifyOwnership",
+      "name": "Verify Ownership",
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1,
+      "position": [520, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hasura-admin-header",
+          "name": "Hasura Admin Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract user id from Hasura headers and verify ownership\nconst userId = $json.headers['x-hasura-user-id'] || $json.headers['X-Hasura-User-Id'];\nif (!userId) { throw new Error('Missing X-Hasura-User-Id'); }\n\nconst chat = items[0].json.data && items[0].json.data.chats_by_pk;\nif (!chat) { throw new Error('Chat not found'); }\nif (chat.user_id !== userId) { throw new Error('Forbidden: chat does not belong to user'); }\nreturn items;"
+      },
+      "id": "AssertOwnership",
+      "name": "Assert Ownership",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [760, 180]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
+        "options": {},
+        "query": "mutation InsertUserMessage($chat_id: uuid!, $content: String!) { insert_messages_one(object: {chat_id: $chat_id, role: \"user\", content: $content}) { id content } }",
+        "variables": "={\n  chat_id: $json.body.input.chat_id,\n  content: $json.body.input.content\n}"
+      },
+      "id": "InsertUserMessage",
+      "name": "Insert User Message (idempotent if needed)",
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1,
+      "position": [520, 420],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hasura-admin-header",
+          "name": "Hasura Admin Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  model: 'openrouter/auto',\n  messages: [\n    { role: 'system', content: 'You are a helpful assistant.' },\n    { role: 'user', content: $json.body.input.content }\n  ]\n}"
+      },
+      "id": "OpenRouter",
+      "name": "OpenRouter Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [760, 420]
+    },
+    {
+      "parameters": {
+        "functionCode": "const choice = $json.choices && $json.choices[0];\nif (!choice) { throw new Error('No choices from OpenRouter'); }\nconst content = choice.message && choice.message.content;\nreturn [{ json: { content } }];"
+      },
+      "id": "ExtractAssistant",
+      "name": "Extract Assistant",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [980, 420]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
+        "options": {},
+        "query": "mutation InsertAssistantMessage($chat_id: uuid!, $content: String!) { insert_messages_one(object: {chat_id: $chat_id, role: \"assistant\", content: $content}) { id content } }",
+        "variables": "={\n  chat_id: $json(\"$prevNode.Webhook.json.body.input.chat_id\"),\n  content: $json.content\n}"
+      },
+      "id": "InsertAssistantMessage",
+      "name": "Insert Assistant Message",
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1,
+      "position": [1200, 420],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hasura-admin-header",
+          "name": "Hasura Admin Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "responseBody": "={\n  message_id: $json.id,\n  content: $json.content\n}"
+      },
+      "id": "Respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1420, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify Ownership",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert User Message (idempotent if needed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Ownership": {
+      "main": [
+        [
+          {
+            "node": "Assert Ownership",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert User Message (idempotent if needed)": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat": {
+      "main": [
+        [
+          {
+            "node": "Extract Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Assistant": {
+      "main": [
+        [
+          {
+            "node": "Insert Assistant Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Assistant Message": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

@@ -1,0 +1,14 @@
+type Mutation {
+  sendMessage(chat_id: uuid!, content: String!): SendMessageOutput!
+}
+
+input SendMessageInput {
+  chat_id: uuid!
+  content: String!
+}
+
+type SendMessageOutput {
+  message_id: uuid!
+  content: String!
+}
+
