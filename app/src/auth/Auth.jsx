@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuthenticationStatus, useSignInEmailPassword, useSignUpEmailPassword } from '@nhost/react'
 import '../styles/auth.css'
 
@@ -11,21 +11,38 @@ export function AuthGate({ children }) {
 function AuthForm() {
   const [mode, setMode] = useState('signin')
 
+  const shellRef = useRef(null)
+  const cardRef = useRef(null)
+
   useEffect(() => {
-    (async () => {
-      const { gsap } = await import('gsap')
-      gsap.from('.card', { y: 14, opacity: 0, duration: .5, ease: 'power2.out' })
-      gsap.from('.field', { y: 8, opacity: 0, duration: .4, stagger: .06, delay: .1 })
+    let ctx
+    ;(async () => {
+      try {
+        const { gsap } = await import('gsap')
+        ctx = gsap.context(() => {
+          if (cardRef.current) {
+            gsap.fromTo(cardRef.current, { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: .4, ease: 'power2.out' })
+          }
+          const fields = cardRef.current?.querySelectorAll('.field') || []
+          if (fields.length) {
+            gsap.fromTo(fields, { y: 6, opacity: 0 }, { y: 0, opacity: 1, duration: .35, stagger: .05, delay: .05 })
+          }
+        }, shellRef)
+      } catch (e) {
+        // Fallback: ensure visible if GSAP fails
+        if (cardRef.current) cardRef.current.style.opacity = 1
+      }
     })()
+    return () => ctx && ctx.revert()
   }, [mode])
 
   return (
-    <div className="auth-shell">
+    <div className="auth-shell" ref={shellRef}>
       <div className="bg-orbs">
         <div className="orb one" />
         <div className="orb two" />
       </div>
-      <div className="card">
+      <div className="card" ref={cardRef} style={{ opacity: 0 }}>
         <h1 className="h1">{mode === 'signin' ? 'Welcome back' : 'Create account'}</h1>
         <p className="muted">{mode === 'signin' ? 'Sign in to continue your conversations.' : 'Join to start a new conversation.'}</p>
         {mode === 'signin' ? <SignIn /> : <SignUp />}

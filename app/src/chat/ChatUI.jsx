@@ -4,6 +4,7 @@ import { useUserData } from '@nhost/react'
 import { CREATE_CHAT, GET_CHATS, GET_MESSAGES, INSERT_MESSAGE, MESSAGES_SUB, SEND_MESSAGE_ACTION } from '../graphql'
 import { nhost } from '../nhost.js'
 import '../styles/chat.css'
+import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export function ChatUI() {
   const [title, setTitle] = useState('New Chat')
@@ -40,6 +41,9 @@ export function ChatUI() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">AI Chat</div>
+        <div className="new-chat" style={{ marginBottom: 10 }}>
+          <ThemeToggle />
+        </div>
         <div className="new-chat" style={{ marginBottom: 16, justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12, opacity: .85 }}>Signed in as<br/><b>{user?.email}</b></div>
           <button className="btn" onClick={() => {
