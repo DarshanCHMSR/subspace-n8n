@@ -1,5 +1,12 @@
 /* Auth screen styles - cohesive with chat UI, using theme vars */
 .auth-shell{min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 600px at 10% -10%,var(--bg-start) 0%,#0f1220 40%,var(--bg-end) 100%);color:var(--text)}
+[data-theme="light"] .auth-shell{background:linear-gradient(180deg,var(--bg-start),var(--bg-end));}
+[data-theme="light"] .card{background:#ffffff;color:#0f172a;border-color:rgba(15,23,42,0.12)}
+[data-theme="light"] .label{color:#0f172a}
+[data-theme="light"] .muted{color:#334155}
+[data-theme="light"] .auth-shell .input{background:#f9fafb;color:#0f172a;border-color:rgba(15,23,42,0.12)}
+[data-theme="light"] .auth-shell .input:focus{background:#fff}
+
 .bg-orbs{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .bg-orbs .orb{position:absolute;filter:blur(40px);opacity:.25;mix-blend:screen}
 .bg-orbs .orb.one{width:380px;height:380px;border-radius:50%;background:var(--primary-1);top:-80px;left:-60px}
