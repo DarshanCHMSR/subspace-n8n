@@ -1,0 +1,243 @@
+{
+  "name": "Simple sendMessage - String Safe",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sendMessage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and validate input data with strict string conversion\nconst body = $input.all()[0].json.body;\nconst headers = $input.all()[0].json.headers;\n\nif (!body || !body.input) {\n  throw new Error('Missing request body or input');\n}\n\nconst input = body.input;\nconst userId = headers['x-hasura-user-id'] || headers['X-Hasura-User-Id'];\n\nif (!userId) {\n  throw new Error('Missing X-Hasura-User-Id header');\n}\n\nif (!input.chat_id || !input.content) {\n  throw new Error('Missing chat_id or content in input');\n}\n\n// Force string conversion for all values\nreturn {\n  chat_id: String(input.chat_id).trim(),\n  content: String(input.content).trim(),\n  user_id: String(userId).trim()\n};"
+      },
+      "id": "validate-and-extract",
+      "name": "Validate & Extract Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
+        "options": {},
+        "query": "query VerifyChat($chat_id: uuid!) {\n  chats_by_pk(id: $chat_id) {\n    id\n    user_id\n  }\n}",
+        "variables": "={\n  \"chat_id\": \"{{ $json.chat_id }}\"\n}"
+      },
+      "id": "verify-chat",
+      "name": "Verify Chat Access",
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hasura-admin",
+          "name": "Hasura Admin Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Verify ownership and pass data through\nconst inputData = $input.all()[0].json;\nconst chatData = $input.all()[1].json.data;\n\nif (!chatData || !chatData.chats_by_pk) {\n  throw new Error('Chat not found');\n}\n\nif (String(chatData.chats_by_pk.user_id) !== String(inputData.user_id)) {\n  throw new Error('Access denied: Chat belongs to different user');\n}\n\n// Return the validated data\nreturn {\n  chat_id: String(inputData.chat_id),\n  content: String(inputData.content),\n  user_id: String(inputData.user_id)\n};"
+      },
+      "id": "verify-ownership",
+      "name": "Verify Ownership",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-3.5-turbo\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful AI assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.content) }}\n    }\n  ],\n  \"max_tokens\": 1000,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "id": "openrouter",
+      "name": "OpenRouter API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "credentials": {
+        "openRouterApi": {
+          "id": "openrouter-api",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract response and ensure it's a string\nconst openrouterResponse = $input.all()[0].json;\nconst inputData = $input.all()[1].json;\n\nif (!openrouterResponse.choices || openrouterResponse.choices.length === 0) {\n  throw new Error('No response choices from OpenRouter');\n}\n\nconst choice = openrouterResponse.choices[0];\nif (!choice.message || choice.message.content === undefined || choice.message.content === null) {\n  throw new Error('No content in OpenRouter response');\n}\n\n// Force string conversion and validate\nlet assistantContent = choice.message.content;\n\n// Handle different data types that might come from OpenRouter\nif (typeof assistantContent === 'number') {\n  assistantContent = String(assistantContent);\n} else if (typeof assistantContent === 'object') {\n  assistantContent = JSON.stringify(assistantContent);\n} else if (typeof assistantContent !== 'string') {\n  assistantContent = String(assistantContent || '');\n}\n\n// Clean the string\nassistantContent = assistantContent.trim();\n\nif (!assistantContent) {\n  assistantContent = 'I apologize, but I could not generate a proper response. Please try again.';\n}\n\nreturn {\n  chat_id: String(inputData.chat_id),\n  assistant_content: assistantContent\n};"
+      },
+      "id": "extract-response",
+      "name": "Extract & Clean Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
+        "options": {},
+        "query": "mutation InsertAssistantMessage($chat_id: uuid!, $content: String!) {\n  insert_messages_one(object: {\n    chat_id: $chat_id,\n    role: \"assistant\",\n    content: $content\n  }) {\n    id\n    content\n  }\n}",
+        "variables": "={\n  \"chat_id\": \"{{ $json.chat_id }}\",\n  \"content\": \"{{ $json.assistant_content }}\"\n}"
+      },
+      "id": "save-response",
+      "name": "Save Assistant Response",
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hasura-admin",
+          "name": "Hasura Admin Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format final response ensuring all fields are strings\nconst savedMessage = $input.all()[0].json.data;\n\nif (!savedMessage || !savedMessage.insert_messages_one) {\n  throw new Error('Failed to save assistant message');\n}\n\nconst message = savedMessage.insert_messages_one;\n\n// Ensure both fields are strings as required by Hasura Action schema\nreturn {\n  message_id: String(message.id),\n  content: String(message.content)\n};"
+      },
+      "id": "format-final-response",
+      "name": "Format Final Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1800, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Verify Chat Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Chat Access": {
+      "main": [
+        [
+          {
+            "node": "Verify Ownership",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Ownership": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter API": {
+      "main": [
+        [
+          {
+            "node": "Extract & Clean Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Clean Response": {
+      "main": [
+        [
+          {
+            "node": "Save Assistant Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Assistant Response": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-14T00:00:00.000Z",
+  "versionId": "1"
+}

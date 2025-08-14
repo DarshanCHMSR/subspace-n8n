@@ -21,6 +21,7 @@ export function ChatUI() {
   const [sendMessageAction] = useMutation(SEND_MESSAGE_ACTION)
 
   const [input, setInput] = useState('')
+  const [thinking, setThinking] = useState(false)
   const msgs = useMemo(() => (subData?.messages ?? messagesData?.messages ?? []), [subData, messagesData])
 
   const onCreateChat = async () => {
@@ -30,11 +31,21 @@ export function ChatUI() {
 
   const onSend = async () => {
     if (!activeChat || !input.trim()) return
-    const content = input
+    const content = String(input.trim()) // Ensure string
     setInput('')
-    // Optimistic-feel: insert first, then call action
-    await insertMessage({ variables: { chat_id: activeChat, role: 'user', content } })
-    await sendMessageAction({ variables: { chat_id: activeChat, content } })
+    setThinking(true)
+    try {
+      // Save user message first
+      await insertMessage({ variables: { chat_id: activeChat, role: 'user', content } })
+      // Trigger n8n via Hasura Action, which calls OpenRouter and stores assistant reply
+      await sendMessageAction({ variables: { chat_id: activeChat, content } })
+    } catch (error) {
+      console.error('Error sending message:', error)
+      // Re-enable input on error
+      setThinking(false)
+    } finally {
+      setThinking(false)
+    }
   }
 
   return (
@@ -83,8 +94,8 @@ export function ChatUI() {
               ))}
             </div>
             <div className="composer">
-              <input className="input" value={input} onChange={e => setInput(e.target.value)} placeholder="Type a message..." />
-              <button className="btn primary" onClick={onSend}>Send</button>
+              <input className="input" value={input} onChange={e => setInput(e.target.value)} placeholder={thinking ? 'Thinking…' : 'Type a message...'} disabled={thinking} />
+              <button className="btn primary" onClick={onSend} disabled={thinking}>{thinking ? 'Waiting…' : 'Send'}</button>
             </div>
           </>
         )}

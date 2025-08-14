@@ -84,7 +84,7 @@
     },
     {
       "parameters": {
-        "functionCode": "const choice = $json.choices && $json.choices[0];\nif (!choice) { throw new Error('No choices from OpenRouter'); }\nconst content = choice.message && choice.message.content;\nreturn [{ json: { content } }];"
+        "functionCode": "const choice = $json.choices && $json.choices[0];\nif (!choice) { throw new Error('No choices from OpenRouter'); }\nconst content = choice.message && choice.message.content;\n\n// Handle different data types that might come from OpenRouter API\nlet stringContent;\nif (typeof content === 'number') {\n  stringContent = String(content);\n} else if (typeof content === 'object' && content !== null) {\n  stringContent = JSON.stringify(content);\n} else if (content === null || content === undefined) {\n  stringContent = 'I apologize, but I could not generate a response. Please try again.';\n} else {\n  stringContent = String(content);\n}\n\n// Clean and validate the string\nstringContent = stringContent.trim();\nif (!stringContent) {\n  stringContent = 'I apologize, but I could not generate a response. Please try again.';\n}\n\nreturn [{ json: { content: stringContent } }];"
       },
       "id": "ExtractAssistant",
       "name": "Extract Assistant",
@@ -99,7 +99,7 @@
         "url": "https://xlgiqpuscuvzvcjfasho.hasura.ap-south-1.nhost.run/v1/graphql",
         "options": {},
         "query": "mutation InsertAssistantMessage($chat_id: uuid!, $content: String!) { insert_messages_one(object: {chat_id: $chat_id, role: \"assistant\", content: $content}) { id content } }",
-        "variables": "={\n  chat_id: $json(\"$prevNode.Webhook.json.body.input.chat_id\"),\n  content: $json.content\n}"
+        "variables": "={\n  \"chat_id\": String($json(\"$prevNode.Webhook.json.body.input.chat_id\")),\n  \"content\": String($json.content)\n}"
       },
       "id": "InsertAssistantMessage",
       "name": "Insert Assistant Message",
@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "responseBody": "={\n  message_id: $json.id,\n  content: $json.content\n}"
+        "responseBody": "={\n  \"message_id\": String($json.data.insert_messages_one.id),\n  \"content\": String($json.data.insert_messages_one.content)\n}"
       },
       "id": "Respond",
       "name": "Respond",
